@@ -12,10 +12,7 @@
     "lib/"
   ],
   "dependencies": {
-    "commander": "^9.0.0",
-    "mdns-resolver": "^1.1.0",
     "nock": "^13.4.0",
-    "read": "^1.0.7",
     "websocket-as-promised": "^2.0.1",
     "ws": "^8.2.0"
   },
@@ -29,6 +26,7 @@
     "@typescript-eslint/parser": "^4.14.1",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
+    "chalk": "^5.3.0",
     "eslint": "^7.18.0",
     "mocha": "^10.2.0",
     "npm": "^8.3.2",
