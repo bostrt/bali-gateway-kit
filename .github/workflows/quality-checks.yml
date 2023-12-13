@@ -16,7 +16,7 @@ jobs:
   quality:
     strategy:
       matrix:
-        node: ['12', '15']
+        node: ['18']
         os: [linux]
     runs-on: ubuntu-latest
     name: Build (${{matrix.os}}, Node ${{matrix.node}})
