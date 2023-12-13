@@ -1,6 +1,6 @@
 import { CredentialsResolver, ServerRelayCredentials } from 'BaliCredentials';
 
-import crypto, { sign } from 'crypto';
+import crypto from 'crypto';
 import https from 'https';
 import url from 'url';
 
@@ -249,7 +249,7 @@ export class BaliCloudResolver implements CredentialsResolver {
           resolve(matches[0]);
         })
         .catch((err) => {
-          reject(new Error(`Error retrieving device server for ${hubSerial} due to ${err}`))
+          reject(new Error(`Error retrieving device server for ${hubSerial} due to ${err}`));
         });
     });
   }

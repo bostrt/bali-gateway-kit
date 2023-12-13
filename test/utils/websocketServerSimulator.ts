@@ -4,7 +4,7 @@ import * as mockHttpServer from './baliHttpApiSimulator';
 export class MockBaliWebsocketServer {
   private server: WebSocketServer;
 
-  constructor(url: string) {
+  constructor() {
     this.server = new WebSocketServer({ port: 8080 });
   }
 

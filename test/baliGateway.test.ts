@@ -21,7 +21,7 @@ let websocketServerCloseTimeout: NodeJS.Timeout;
 
 // Test conveneince extension to randomly select an element from an Array
 function randomElem<T>(a: Array<T>): T {
-  return a[Math.floor( Math.random() * a.length )]
+  return a[Math.floor( Math.random() * a.length )];
 }
 
 describe('BaliGateway Test Suite', function() {
@@ -31,7 +31,7 @@ describe('BaliGateway Test Suite', function() {
   mockHttpServer.deviceRelayLookup();
 
   before('Setup test websocket server', function() {
-    websocketServer = new mockWebsocketServer.MockBaliWebsocketServer(mockHttpServer.fakeDeviceRelayResp.Server_Relay);
+    websocketServer = new mockWebsocketServer.MockBaliWebsocketServer();
     websocketServer.setup();
     console.log(chalk.green('      ✓'), 
       chalk.gray(`Mock websocket server initialized at ${mockHttpServer.fakeDeviceRelayResp.Server_Relay}`));
