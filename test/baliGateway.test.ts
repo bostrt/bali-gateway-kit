@@ -5,9 +5,10 @@ import * as mockHttpServer from './utils/baliHttpApiSimulator';
 import { BaliGateway, HubIdentifier, ObservationHandler, MessagePredicate, EzloIdentifier } from '../src/BaliGateway';
 import { BaliCloudResolver } from '../src/BaliCredentials';
 
-import * as chai from 'chai';
+import chai from 'chai';
 import { expect } from 'chai';
-chai.use(require('chai-as-promised'));
+import chaiAsPromised from 'chai-as-promised';
+chai.use(chaiAsPromised);
 
 import chalk from 'chalk';
 
@@ -19,20 +20,15 @@ let websocketServerCloseTimeout: NodeJS.Timeout;
 
 
 // Test conveneince extension to randomly select an element from an Array
-declare global {
-  interface Array<T> {
-    randomElem(): T;
-  }
+function randomElem<T>(a: Array<T>): T {
+  return a[Math.floor( Math.random() * a.length )]
 }
-Array.prototype.randomElem = function () {
-  return this[Math.floor( Math.random() * this.length )];
-};
 
 describe('BaliGateway Test Suite', function() {
-  const portalScope = mockHttpServer.portal();
-  const sessionScope = mockHttpServer.sessionLookup();
-  const deviceScope = mockHttpServer.deviceLookup();
-  const deviceRelayScope = mockHttpServer.deviceRelayLookup();
+  mockHttpServer.portal();
+  mockHttpServer.sessionLookup();
+  mockHttpServer.deviceLookup();
+  mockHttpServer.deviceRelayLookup();
 
   before('Setup test websocket server', function() {
     websocketServer = new mockWebsocketServer.MockBaliWebsocketServer(mockHttpServer.fakeDeviceRelayResp.Server_Relay);
@@ -48,7 +44,7 @@ describe('BaliGateway Test Suite', function() {
 
   before('Get test hub(s)', async function() {
     availableHubs = await resolverStrategy.hubs();
-    hubSerial = availableHubs.randomElem();
+    hubSerial = randomElem(availableHubs);
     console.log(chalk.green('      ✓'), chalk.gray(`Hub ${hubSerial} selected for test execution`));
   });
 
@@ -97,7 +93,7 @@ describe('BaliGateway Test Suite', function() {
       return this.hub.devices()
         .then((devices) => {
           expect(devices.length, 'No devices returned').to.be.greaterThan(0);
-          const randomDevice = devices.randomElem();
+          const randomDevice: any = randomElem(devices);
           return { name: randomDevice.name, id: randomDevice._id };
         })
         .then((testDevice) => {
@@ -113,7 +109,7 @@ describe('BaliGateway Test Suite', function() {
     });
 
     it('items(): hub.items.list (for specific device)', async function() {
-      const testDeviceId = await this.hub.devices().then((devices: any[]) => devices.randomElem()._id);
+      const testDeviceId = await this.hub.devices().then((devices: any[]) => randomElem(devices)._id);
       return expect(this.hub.items(testDeviceId).then(items => items[0])).to.eventually.be.fulfilled
         .and.to.have.property('deviceId').to.be.equal(testDeviceId);
     });
@@ -123,8 +119,8 @@ describe('BaliGateway Test Suite', function() {
     });
 
     it('item(): item with name for device', async function() {
-      const testDevice = await this.hub.devices().then((devices: any[]) => devices.randomElem());
-      const testItem = await this.hub.items(testDevice._id).then((items: any[]) => items.randomElem());
+      const testDevice = await this.hub.devices().then((devices: any[]) => randomElem(devices));
+      const testItem = await this.hub.items(testDevice._id).then((items: any[]) => randomElem(items));
       return expect(this.hub.item(testItem.name, testDevice._id).then(items => items[0])).to.eventually.be.fulfilled
         .and.to.have.property('_id').to.be.equal(testItem._id);
     });
@@ -134,7 +130,7 @@ describe('BaliGateway Test Suite', function() {
     });
 
     it('scene(): scene with name', async function() {
-      const testScene = await this.hub.scenes().then((scenes: any[]) => scenes.randomElem());
+      const testScene = await this.hub.scenes().then((scenes: any[]) => randomElem(scenes));
       return expect(this.hub.scene(testScene.name)).to.eventually.be.fulfilled
         .and.to.have.property('_id').to.be.equal(testScene._id);
     });
@@ -148,7 +144,7 @@ describe('BaliGateway Test Suite', function() {
     });
 
     it('room(): room with name', async function() {
-      const testRoom = await this.hub.rooms().then((rooms: any[]) => rooms.randomElem());
+      const testRoom = await this.hub.rooms().then((rooms: any[]) => randomElem(rooms));
       return expect(this.hub.room(testRoom.name)).to.eventually.be.fulfilled
         .and.to.have.property('_id').to.be.equal(testRoom._id);
     });

@@ -60,5 +60,4 @@ jobs:
 
       - name: Test ${{matrix.hub}}
         run: |
-          initcontext
           npm run test
