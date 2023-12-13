@@ -1,43 +1,33 @@
 export const version = '0.0.1';
 
 import {
-  EzloHub,
+  BaliGateway,
   HubIdentifier,
   EzloIdentifier,
-  discoverEzloHubs,
-  DiscoveryCallback,
   MessagePredicate,
   ObservationHandler,
   Message,
   UIBroadcastPredicate,
   UIBroadcastRunScenePredicate,
   UIBroadcastRunSceneDonePredicate,
-  UIBroadcastHouseModeChangePredicate,
-  UIBroadcastHouseModeChangeDonePredicate,
-} from './EzloHub';
+} from './BaliGateway';
 
 import {
-  HubCredentials,
-  EzloCloudResolver,
-  ConfigFileResolver,
-} from './EzloCredentials';
+  ServerRelayCredentials,
+  BaliCloudResolver,
+} from './BaliCredentials';
 
 export {
-  EzloHub,
+  BaliGateway,
   HubIdentifier,
   EzloIdentifier,
-  discoverEzloHubs,
-  DiscoveryCallback,
-  HubCredentials,
-  EzloCloudResolver,
-  ConfigFileResolver,
+  ServerRelayCredentials,
+  BaliCloudResolver,
   MessagePredicate,
   ObservationHandler,
   Message,
   UIBroadcastPredicate,
   UIBroadcastRunScenePredicate,
   UIBroadcastRunSceneDonePredicate,
-  UIBroadcastHouseModeChangePredicate,
-  UIBroadcastHouseModeChangeDonePredicate,
 };
 

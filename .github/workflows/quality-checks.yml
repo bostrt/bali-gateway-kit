@@ -18,7 +18,7 @@ jobs:
       matrix:
         node: ['12', '15']
         os: [linux]
-    runs-on: [self-hosted]
+    runs-on: ubuntu-latest
     name: Build (${{matrix.os}}, Node ${{matrix.node}})
     steps:
       - name: Github setup & checkout

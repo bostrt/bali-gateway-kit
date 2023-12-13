@@ -1,8 +1,6 @@
 /* eslint-disable no-console */
-import { HubCredentials, CredentialsResolver } from './EzloCredentials';
+import { CredentialsResolver, ServerRelayCredentials } from './BaliCredentials';
 
-import Bonjour from 'bonjour';
-import * as MDNSResolver from 'mdns-resolver';
 import WebSocket from 'ws';
 const WebSocketAsPromised = require('websocket-as-promised');
 
@@ -13,12 +11,6 @@ export declare type ObservationHandler = (message: Message) => void;
 export declare type MessagePredicate = (message: Message) => boolean;
 
 export const UIBroadcastPredicate: MessagePredicate = (msg: Message) => msg.id === 'ui_broadcast';
-
-export const UIBroadcastHouseModeChangePredicate: MessagePredicate = (msg: Message) =>
-  UIBroadcastPredicate(msg) && msg.msg_subclass === 'hub.modes.switched';
-
-export const UIBroadcastHouseModeChangeDonePredicate: MessagePredicate = (msg: Message) =>
-  UIBroadcastHouseModeChangePredicate(msg) && msg.result?.status === 'done';
 
 export const UIBroadcastRunScenePredicate: MessagePredicate = (msg: Message) =>
   UIBroadcastPredicate(msg) && msg.msg_subclass === 'hub.scene.run.progress';
@@ -31,69 +23,18 @@ interface Observer {
   readonly handler: ObservationHandler;
 }
 
-/**
- * discoverEzloHubs callback that is invoked whenever a hub is discovered
- *
- * @param EzloHub - a ready-to-use EzloHub instance
- */
-export type DiscoveryCallback = (hub: EzloHub) => void;
-
-/**
- * Discover Ezlo hubs advertised on mdns/zeroconf/bonjour calling callback with hub instance. Discovery continues
- * until duration elapses or infinitely if duration is <= 0
- *
- * @param credentialsResolver - the credentials resolver to use for hub creation
- * @param callback - called whenever a hub is discovered
- * @param duration - optional duration for discovery.  Defaults to continuous discovery.
- */
-export function discoverEzloHubs(credentialsResolver: CredentialsResolver, callback: DiscoveryCallback, duration = 0) {
-  const bonjour = Bonjour();
-  const _hubs: Record<EzloIdentifier, EzloHub> = {};
-
-  const ezloBrowser = bonjour.find( { type: 'ezlo' } );
-
-  ezloBrowser.on('up', (service: Bonjour.RemoteService) => {
-    EzloHub.createHub(service.txt.serial, credentialsResolver)
-      .then(hub => {
-        _hubs[service.txt.serial] = hub;
-        callback(hub);
-      })
-      .catch(err => console.log('Failed to instantiate discovered hub %s due to error %O', service.txt.serial, err));
-  });
-
-  ezloBrowser.on('down', (service: Bonjour.RemoteService) => {
-    console.log('Hub %s at wss://%s:%s disappeared', service.txt.serial, service.referer.address, service.port);
-    // Disconnect to avoid redundant wss:// connections if/when hub reappears (reduces client responsibilities)
-    _hubs[service.txt.serial].disconnect().then(() => delete _hubs[service.txt.serial]);
-  });
-
-  // Set an infinite mdns search refresh interval
-  if (duration === 0) {
-    setInterval(() => {
-      try {
-        ezloBrowser.update();
-      } catch (err) {
-        console.log(`mdnsBrowser update failed with err ${err}`);
-      }
-    }, 30000);
-  // Stop search after duration ms
-  } else {
-    setTimeout(() => bonjour.destroy(), duration);
-  }
-}
-
-export class EzloHub {
+export class BaliGateway {
   public identity: HubIdentifier;
   private _isConnected = false;
   private wsp: typeof WebSocketAsPromised;
   private observers: Observer[] = [];
   private keepAliveDelegate: KeepAliveAgent;
 
-  constructor(public url: string, private credentials: HubCredentials) {
+  constructor(private credentials: ServerRelayCredentials) {
     this.identity = credentials.hubIdentity;
     // Create the websocket and register observer dispatch handlers
     // NOTE: Override ECC ciphers to prevent over-burdening crytpo on Atom w/ESP32
-    this.wsp = new WebSocketAsPromised(url, {
+    this.wsp = new WebSocketAsPromised(credentials.url, {
       createWebSocket: (url: string) => new WebSocket(url, { rejectUnauthorized: false, ciphers: 'AES256-SHA256' }),
       extractMessageData: (event: unknown) => event,
       packMessage: (data: unknown) => JSON.stringify(data),
@@ -124,15 +65,12 @@ export class EzloHub {
    * given serial number
    * @returns EzloHub instance
    */
-  static async createHub(hubSerial: HubIdentifier, credentialsResolver: CredentialsResolver): Promise<EzloHub> {
+  static async createHub(hubSerial: HubIdentifier, credentialsResolver: CredentialsResolver): Promise<BaliGateway> {
     try {
       const credentails = await credentialsResolver.credentials(hubSerial);
-      const hostname = `HUB${hubSerial}.local`;
-      const ipaddress = await MDNSResolver.resolve4(hostname);
-      const url = `wss://${ipaddress}:17000`;
-      return new EzloHub(url, credentails);
+      return new BaliGateway(credentails);
     } catch(err) {
-      console.log('Failed to instantiate ezlo hub due to error: ', err);
+      console.log('Failed to instantiate bali gateway due to error: ', err);
       throw err;
     }
   }
@@ -143,26 +81,33 @@ export class EzloHub {
    * Note, EzloHub automatically manages the connection state.  Application developers
    * do not need to invoke this method.  It is declared public purely for unit testing.
    *
-   * @returns {Promise<EzloHub>} hub instance that connected.
+   * @returns {Promise<BaliGateway>} hub instance that connected.
    */
-  connect(): Promise<EzloHub> {
+  connect(): Promise<BaliGateway> {
     if (this._isConnected === true) {
       return Promise.resolve(this);
     }
 
     return new Promise((resolve, reject) => {
       this.wsp.open()
-        .then(() => this.wsp.sendRequest({method: 'hub.offline.login.ui',
-          params: { user: this.credentials.user, token: this.credentials.token }}))
+        .then(() => this.wsp.sendRequest({method: 'loginUserMios',
+          params: { PK_Device: this.credentials.hubIdentity, MMSAuthSig: this.credentials.signature, MMSAuth: this.credentials.token }}))
         .then((response: any) => {
           if (response.error !== null && response.error.data !== 'user.login.alreadylogged') {
-            reject(new Error(`Login failed for ${this.url} due to error ${response.error.data}`));
+            reject(new Error(`Login failed for ${this.credentials.url} due to error ${response.error.data}`));
+          }
+        })
+        .then(() => this.wsp.sendRequest({method: 'register',
+          params: {serial: this.credentials.hubIdentity}}))
+        .then((response: any) => {
+          if (response.error !== null) {
+            reject(new Error(`Device registration failed due to ${response.error.data}`));
           }
           this._isConnected = true;
           resolve(this);
         })
         .catch(err => {
-          reject(new Error(`Login failed - unable to connect to ${this.url} due to error ${err}`));
+          reject(new Error(`Login failed - unable to connect to ${this.credentials.url} due to error ${err}`));
         });
     });
   }
@@ -200,10 +145,13 @@ export class EzloHub {
 
   /**
    * Hub data (devices, items, scenes)
+   * 
+   * This appears to make Ezlo Hub version 100 (ATOM32) crash hence being a private method. 
+   * TODO: Consider deleting this. 
    *
    * @returns collection of devices, items, rooms and scenes
    */
-  public data(): Promise<Array<any>> {
+  private data(): Promise<Array<any>> {
     const request = {
       method: 'hub.data.list',
       'params': {
@@ -309,36 +257,6 @@ export class EzloHub {
   }
 
   /**
-   * House Modes
-   *
-   * @returns collection of available house modes
-   */
-  public houseModes(): Promise<any[]> {
-    return this.sendRequest({ method: 'hub.modes.get', params: {} }).then(res => res.modes);
-  }
-
-  /**
-   * House Mode with name
-   *
-   * @param name - name of the house mode
-   * @returns mode | undefined if mode with name doesn't exist
-   */
-  public houseMode(name: EzloIdentifier): Promise<string> {
-    return this.houseModes().then(modes => modes.filter(mode => mode.name === name)[0]);
-  }
-
-  /**
-   * Current House Mode
-   *
-   * @returns current House Mode
-   */
-  public currentHouseMode(): Promise<any> {
-    return this.sendRequest({ method: 'hub.modes.get', params: {} }).then( result => {
-      return result.modes.filter(mode => mode._id === result.current)[0];
-    });
-  }
-
-  /**
    * Network Interface objects for the hub
    *
    * @return collection of network interfaces
@@ -393,52 +311,6 @@ export class EzloHub {
             clearTimeout(expiry);
             reject(new Error(`Hub ${this.identity} did not acknowlege Scene ${result.scene_id} completion within 60 seconds`));
           }, 60 * 1000);
-        })
-        .catch(err => reject(err));
-    });
-  }
-
-  /**
-   * Set the House Mode
-   *
-   * This method changes the House Mode returning a promise that resolves to the requested House Mode.
-   * If the current house mode is the requested mode, then the promise immediately resolves to that mode.
-   * If a mode change is initiated, the promise is resolved once the hub acknowledges the House Mode change.
-   * This enables App clients to change the house mode and "then" issue actions once the hub completes
-   * the mode switch.
-   *
-   * @param mode - mode identifier
-   * @returns msg - Mode
-   */
-  public setHouseMode(mode: EzloIdentifier): Promise<EzloIdentifier> {
-    return new Promise((resolve, reject) => {
-      // Only change to new mode hub isn't already in that mode
-      this.currentHouseMode()
-        .then((currentMode) => {
-          if (mode === currentMode._id) {
-            return resolve(mode);
-          }
-
-          // Resolve to new Mode when the hub broadcasts the hub.modes.switched message stat status done.
-          let expiry: NodeJS.Timeout;
-
-          const modeChangeDonePredicate = (msg: Message) => UIBroadcastHouseModeChangeDonePredicate(msg) && msg.result?.to === mode;
-          const completionObserver = this.addObserver(modeChangeDonePredicate, (msg) => {
-            clearTimeout(expiry);
-            this.removeObserver(completionObserver);
-            resolve(msg.result.to as EzloIdentifier);
-          });
-
-          // Request house mode change - fail if hub doesn't acknowledge mode change by switchToDelay + 1 second
-          this.sendRequest({method: 'hub.modes.switch', params: { modeId: mode } })
-            .then((result) => {
-              expiry = setTimeout(() => {
-                this.removeObserver(completionObserver);
-                clearTimeout(expiry);
-                reject(new Error(`Hub ${this.identity} did not acknowldege Mode change within ${result.switchToDelay+1} seconds`));
-              }, result.switchToDelay * 1000 + 1000);
-            })
-            .catch(err => reject(err));
         })
         .catch(err => reject(err));
     });
@@ -517,7 +389,7 @@ class KeepAliveAgent {
   private pingExpiry?: NodeJS.Timeout = undefined;
   private reconnectInterval?: NodeJS.Timeout = undefined;
 
-  constructor(private hub: EzloHub, private wsp: typeof WebSocketAsPromised) {
+  constructor(private hub: BaliGateway, private wsp: typeof WebSocketAsPromised) {
     wsp.onOpen.addListener(() => this.startHeartbeat());
   }
 

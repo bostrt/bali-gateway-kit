@@ -24,6 +24,6 @@ jobs:
           npm pack
 
       - name: Publish to NPM
-        run: npm publish ezlo-hub-kit-${GITHUB_REF#refs/*/v}.tgz
+        run: npm publish bali-gateway-kit-${GITHUB_REF#refs/*/v}.tgz
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
