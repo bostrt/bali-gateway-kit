@@ -1,4 +1,4 @@
-import { CredentialsResolver, ServerRelayCredentials } from 'BaliCredentials';
+import { CredentialsResolver, ServerRelayCredentials } from '../BaliCredentials';
 
 import crypto from 'crypto';
 import https from 'https';
