@@ -9,8 +9,11 @@ import { HubIdentifier } from '../../src/BaliGateway';
  */
 
 export const fakeHubIdentity: HubIdentifier = '70001234';
+const expiration = Date.now() + 10000; // 10 seconds from now
+const fakeAccountId = 1238062;
+const portalIdentity = btoa(JSON.stringify({'Expires': expiration, 'PK_Account': fakeAccountId}));
 const fakePortalAuth = {
-  'Identity': 'eyJFeHBpcmVzIjo5OTk5OTk5OTk5OTk5LCJQS19BY2NvdW50IjoxMjM4MDYyfQo=',
+  'Identity': portalIdentity,
   'IdentitySignature': 'my-fake-signautre',
   'Server_Account': 'swf-us-oem-account11.mios.com',
   'Server_Account_Alt': 'swf-us-oem-account12.mios.com',
