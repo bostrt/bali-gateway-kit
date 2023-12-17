@@ -388,7 +388,7 @@ export class BaliGateway {
    * @param request - json-rpc request object
    * @returns the json parsed result object from the response json.
    */
-  private sendRequest(request: Record<string, unknown>, retries = 2): Promise<any> {
+  private sendRequest(request: Record<string, unknown>): Promise<any> {
     return new Promise((resolve, reject) => {
       this.connect()
         .then(() => this.wsp.sendRequest(request))
