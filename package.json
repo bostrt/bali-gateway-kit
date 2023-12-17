@@ -11,6 +11,7 @@
     "lib/"
   ],
   "dependencies": {
+    "async-mutex": "^0.4.0",
     "ts-mocha": "^10.0.0",
     "websocket-as-promised": "^2.0.1",
     "ws": "^8.15.1"

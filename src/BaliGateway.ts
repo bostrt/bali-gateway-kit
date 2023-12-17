@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 import { CredentialsResolver, ServerRelayCredentials } from './BaliCredentials';
+import { Mutex } from 'async-mutex';
 
 import WebSocket from 'ws';
 const WebSocketAsPromised = require('websocket-as-promised');
@@ -24,17 +25,36 @@ interface Observer {
 }
 
 export class BaliGateway {
-  public identity: HubIdentifier;
+  public identity!: HubIdentifier;
   private _isConnected = false;
   private wsp: typeof WebSocketAsPromised;
   private observers: Observer[] = [];
-  private keepAliveDelegate: KeepAliveAgent;
+  private keepAliveDelegate!: KeepAliveAgent;
+  private credentials!: ServerRelayCredentials;
+  private connectMutex: Mutex = new Mutex();
 
-  constructor(private credentials: ServerRelayCredentials) {
-    this.identity = credentials.hubIdentity;
+  constructor(private credentialsResolver: CredentialsResolver, private hubSerial: HubIdentifier) {
+  }
+
+  private compareCredentials(a: ServerRelayCredentials, b: ServerRelayCredentials): boolean {
+    if (!a || !b) {
+      return false;
+    }
+    return a.hubIdentity === b.hubIdentity && a.signature === b.signature && a.token === b.token && 
+      a.url === b.url;
+  }
+
+  public async initialize() {
+    const newCredentials = await this.credentialsResolver.credentials(this.hubSerial);
+    if (this.compareCredentials(newCredentials, this.credentials)) {
+      return;
+    }
+
+    this.credentials = newCredentials;
+    this.identity = this.credentials.hubIdentity;
     // Create the websocket and register observer dispatch handlers
     // NOTE: Override ECC ciphers to prevent over-burdening crytpo on Atom w/ESP32
-    this.wsp = new WebSocketAsPromised(credentials.url, {
+    this.wsp = new WebSocketAsPromised(this.credentials.url, {
       createWebSocket: (url: string) => new WebSocket(url, { rejectUnauthorized: false, ciphers: 'AES256-SHA256' }),
       extractMessageData: (event: unknown) => event,
       packMessage: (data: unknown) => JSON.stringify(data),
@@ -67,8 +87,9 @@ export class BaliGateway {
    */
   static async createHub(hubSerial: HubIdentifier, credentialsResolver: CredentialsResolver): Promise<BaliGateway> {
     try {
-      const credentails = await credentialsResolver.credentials(hubSerial);
-      return new BaliGateway(credentails);
+      const gateway = new BaliGateway(credentialsResolver, hubSerial);
+      await gateway.initialize();
+      return gateway;
     } catch(err) {
       console.log('Failed to instantiate bali gateway due to error: ', err);
       throw err;
@@ -83,9 +104,12 @@ export class BaliGateway {
    *
    * @returns {Promise<BaliGateway>} hub instance that connected.
    */
-  connect(): Promise<BaliGateway> {
+  async connect(): Promise<BaliGateway> {
+    const release = await this.connectMutex.acquire();
+    await this.initialize();
+
     if (this._isConnected === true) {
-      return Promise.resolve(this);
+      return Promise.resolve(this).finally(release);
     }
 
     return new Promise((resolve, reject) => {
@@ -108,7 +132,8 @@ export class BaliGateway {
         })
         .catch(err => {
           reject(new Error(`Login failed - unable to connect to ${this.credentials.url} due to error ${err}`));
-        });
+        })
+        .finally(release);
     });
   }
 
@@ -121,8 +146,11 @@ export class BaliGateway {
    * @return Promise<void> - disconnect complete
    */
   disconnect(): Promise<void> {
-    this._isConnected = false;
-    return this.wsp.close();
+    return this.connectMutex.acquire()
+      .then((release) => {
+        this._isConnected = false;
+        return this.wsp.close().finally(release);    
+      });
   }
 
   /**
@@ -360,7 +388,7 @@ export class BaliGateway {
    * @param request - json-rpc request object
    * @returns the json parsed result object from the response json.
    */
-  private sendRequest(request: Record<string, unknown>): Promise<any> {
+  private sendRequest(request: Record<string, unknown>, retries = 2): Promise<any> {
     return new Promise((resolve, reject) => {
       this.connect()
         .then(() => this.wsp.sendRequest(request))
