@@ -1,6 +1,6 @@
 {
   "name": "bali-gateway-kit",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "API for Bali Motorization Gateways",
   "main": "lib/cjs/index.js",
   "repository": {
