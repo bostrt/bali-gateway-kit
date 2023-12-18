@@ -1,5 +1,5 @@
 import { WebSocketServer } from 'ws';
-import * as mockHttpServer from './baliHttpApiSimulator';
+import { BaliApiSimulator } from './baliHttpApiSimulator';
 
 export class MockBaliWebsocketServer {
   private server: WebSocketServer;
@@ -66,7 +66,7 @@ export class MockBaliWebsocketServer {
       'firmware': '0.8.537',
       'kernel': 'v4.1-rc-4-gbd72a9ab2',
       'hardware': 'rev1',
-      'serial': mockHttpServer.fakeHubIdentity,
+      'serial': BaliApiSimulator.fakeHubIdentity,
       'build': {
         'time': '2021-02-26T13:54:29+0000',
         'builder': 'root@2ee9b1df7da3',

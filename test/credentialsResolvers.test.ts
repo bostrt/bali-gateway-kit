@@ -1,17 +1,19 @@
 import { BaliCloudResolver, ServerRelayCredentials } from '../src/BaliCredentials';
-import * as mockHttpServer from './utils/baliHttpApiSimulator';
+import { BaliApiSimulator } from './utils/baliHttpApiSimulator';
 import * as chai from 'chai';
 import { expect } from 'chai';
 chai.use(require('chai-as-promised'));
 
+
 describe('BaliCredentials Test Suite', function () {
+  const baliApiSim = new BaliApiSimulator();
 
   describe('BaliCloudResolver Tests', function () {
     it('hubs(): registered hubs', function () {
-      const resolver = new BaliCloudResolver(mockHttpServer.fakeUser, mockHttpServer.fakePassword);
-      const portalScope = mockHttpServer.portal();
-      const sessionScope = mockHttpServer.sessionLookup();
-      const deviceScope = mockHttpServer.deviceLookup();
+      const resolver = new BaliCloudResolver(BaliApiSimulator.fakeUser, BaliApiSimulator.fakePassword);
+      const portalScope = baliApiSim.portal();
+      const sessionScope = baliApiSim.sessionLookup();
+      const deviceScope = baliApiSim.deviceLookup();
 
       return resolver.hubs()
         .then((hubs) => {
@@ -26,11 +28,11 @@ describe('BaliCredentials Test Suite', function () {
     });
 
     it('credentials(): credentials from Cloud for known hubs', async function () {
-      const resolver = new BaliCloudResolver(mockHttpServer.fakeUser, mockHttpServer.fakePassword);
-      const portalScope = mockHttpServer.portal();
-      const sessionScope = mockHttpServer.sessionLookup();
-      const deviceScope = mockHttpServer.deviceLookup();
-      const deviceRelayScope = mockHttpServer.deviceRelayLookup();
+      const resolver = new BaliCloudResolver(BaliApiSimulator.fakeUser, BaliApiSimulator.fakePassword);
+      const portalScope = baliApiSim.portal();
+      const sessionScope = baliApiSim.sessionLookup();
+      const deviceScope = baliApiSim.deviceLookup();
+      const deviceRelayScope = baliApiSim.deviceRelayLookup();
 
       const expectations: Promise<ServerRelayCredentials | string>[] = [];
       for (const hub of await resolver.hubs()) {
@@ -55,10 +57,10 @@ describe('BaliCredentials Test Suite', function () {
     });
 
     it('credentials(): throw for missing or invalid hub entry', function () {
-      const resolver = new BaliCloudResolver(mockHttpServer.fakeUser, mockHttpServer.fakePassword);
-      const portalScope = mockHttpServer.portal();
-      const sessionScope = mockHttpServer.sessionLookup();
-      const deviceScope = mockHttpServer.deviceLookup();
+      const resolver = new BaliCloudResolver(BaliApiSimulator.fakeUser, BaliApiSimulator.fakePassword);
+      const portalScope = baliApiSim.portal();
+      const sessionScope = baliApiSim.sessionLookup();
+      const deviceScope = baliApiSim.deviceLookup();
 
       return expect(resolver.credentials('NonExistantHub')
         .finally(() => {
@@ -69,8 +71,8 @@ describe('BaliCredentials Test Suite', function () {
     });
 
     it('hubs(): throw for non-existant MIOS user', function () {
-      const portalAuthFailScope = mockHttpServer.portalAuthFailure();
-      const resolver = new BaliCloudResolver(mockHttpServer.nonExistentUser, 'passwd');
+      const portalAuthFailScope = baliApiSim.portalAuthFailure();
+      const resolver = new BaliCloudResolver(BaliApiSimulator.nonExistentUser, 'passwd');
       return expect(resolver.hubs()
         .finally(() => {
           portalAuthFailScope.done();

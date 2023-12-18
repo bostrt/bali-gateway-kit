@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import * as mockWebsocketServer from './utils/websocketServerSimulator';
-import * as mockHttpServer from './utils/baliHttpApiSimulator';
+import { BaliApiSimulator } from './utils/baliHttpApiSimulator';
 
 import { BaliGateway, HubIdentifier, ObservationHandler, MessagePredicate, EzloIdentifier } from '../src/BaliGateway';
 import { BaliCloudResolver } from '../src/BaliCredentials';
@@ -12,12 +12,12 @@ chai.use(chaiAsPromised);
 
 import chalk from 'chalk';
 
-const resolverStrategy: BaliCloudResolver = new BaliCloudResolver(mockHttpServer.fakeUser, mockHttpServer.fakePassword);
+const resolverStrategy: BaliCloudResolver = new BaliCloudResolver(BaliApiSimulator.fakeUser, BaliApiSimulator.fakePassword);
 let availableHubs: HubIdentifier[];
 let hubSerial: HubIdentifier = 'undefined';
 let websocketServer: mockWebsocketServer.MockBaliWebsocketServer;
-let websocketServerCloseTimeout: NodeJS.Timeout;
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Test conveneince extension to randomly select an element from an Array
 function randomElem<T>(a: Array<T>): T {
@@ -25,21 +25,26 @@ function randomElem<T>(a: Array<T>): T {
 }
 
 describe('BaliGateway Test Suite', function() {
-  mockHttpServer.portal();
-  mockHttpServer.sessionLookup();
-  mockHttpServer.deviceLookup();
-  mockHttpServer.deviceRelayLookup();
+  const baliApiSim = new BaliApiSimulator();
+  const portalScope = baliApiSim.portal();
+  const sessionLookupScope = baliApiSim.sessionLookup();
+  const deviceLookupScope = baliApiSim.deviceLookup();
+  const deviceRelayScope = baliApiSim.deviceRelayLookup();
 
   before('Setup test websocket server', function() {
     websocketServer = new mockWebsocketServer.MockBaliWebsocketServer();
     websocketServer.setup();
     console.log(chalk.green('      ✓'), 
-      chalk.gray(`Mock websocket server initialized at ${mockHttpServer.fakeDeviceRelayResp.Server_Relay}`));
+      chalk.gray(`Mock websocket server initialized at ${BaliApiSimulator.fakeDeviceRelayResp.Server_Relay}`));
   });
 
   after('Tear down test websocket server', function() {
-    clearTimeout(websocketServerCloseTimeout);
+    portalScope.done();
+    sessionLookupScope.done();
+    deviceLookupScope.done();
+    deviceRelayScope.done();
     websocketServer.close();
+    baliApiSim.stop();
   });
 
   before('Get test hub(s)', async function() {
@@ -189,6 +194,25 @@ describe('BaliGateway Test Suite', function() {
     it.skip('setItemValue()', function() {
       expect.fail('Test case not yet implemented.');
     });
+  });
+
+  describe.skip('Test expired auth token', function() {
+    before('initialize hub test instance', async function() {
+      this.hub = await BaliGateway.createHub(hubSerial, resolverStrategy).then(hub => hub.connect());
+    });
+    after(function () {
+      this.hub.disconnect();
+    });
+
+    it('Try to get list of rooms, wait, and then try again', async function() {
+      console.log(await this.hub.rooms());
+      await sleep(BaliApiSimulator.age);
+      const portalScope = baliApiSim.portal();
+      const sessionLookupScope = baliApiSim.sessionLookup();
+      console.log(await this.hub.rooms());
+      portalScope.done();
+      sessionLookupScope.done();
+    }).timeout(BaliApiSimulator.age + 1000);
   });
 
   describe.skip('Keep-alive test', function() {

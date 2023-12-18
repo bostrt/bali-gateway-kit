@@ -35,20 +35,6 @@ class PortalAuth extends AuthToken {
   };
 }
 
-
-/**
-* Represents, and encapsulates an Ezlo Cloud authorization crendtial
-*/
-class CloudAuth extends AuthToken {
-  constructor(public token: string) {
-    super(JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString()).token.expires_ts);
-  }
-
-  toHeaderRepresentation = (): Record<string, unknown> => {
-    return { authorization: `Bearer ${this.token}` };
-  };
-}
-
 /**
  * Holds MiOS Portal MMS session token.
  */
@@ -77,7 +63,6 @@ export class BaliCloudResolver implements CredentialsResolver {
   private readonly passwordHash: string;
   private portalAuth?: PortalAuth;
   private sessionToken?: SessionToken;
-  private cloudAuth?: CloudAuth;
   private deviceCache = new Map<string, DeviceServer[]>();
   private deviceRelayCache = new Map<DeviceServer, string>(); // Map of DeviceServer -> device server relay URL
 
@@ -121,10 +106,7 @@ export class BaliCloudResolver implements CredentialsResolver {
 
 
   private sessionAuthenticate(portalAuth: PortalAuth): Promise<SessionToken> {
-    if (this.sessionToken && BaliCloudResolver.authIsValid(this.sessionToken)) {
-      return Promise.resolve(this.sessionToken);
-    }
-
+    // No cached responses for session token. Always request one.
     return new Promise((resolve, reject) => {
       const endpoint =
         `https://${portalAuth.serverAccount}/info/session/token`;
@@ -141,7 +123,7 @@ export class BaliCloudResolver implements CredentialsResolver {
   }
 
   private authenticate(): Promise<void> {
-    if (this.portalAuth && this.sessionToken && BaliCloudResolver.authIsValid(this.cloudAuth)) {
+    if (this.portalAuth && this.sessionToken && BaliCloudResolver.authIsValid(this.portalAuth)) {
       return Promise.resolve();
     }
 
@@ -164,33 +146,30 @@ export class BaliCloudResolver implements CredentialsResolver {
 
   private deviceServers(): Promise<DeviceServer[]> {
     return new Promise<DeviceServer[]>((resolve, reject) => {
-      this.authenticate()
-        .then(() => {
-          const accountId = JSON.parse(Buffer.from(this.portalAuth!.identity, 'base64').toString()).PK_Account;
-          if (this.deviceCache.has(accountId)) {
-            const deviceServers = this.deviceCache.get(accountId);
-            resolve(deviceServers!);
-          } else {
-            const endpoint =
-              `https://${this.portalAuth!.serverAccount}/account/account/account/${accountId}/devices`;
-            htRequest(Object.assign({}, url.parse(endpoint), { headers: this.sessionToken!.toHeaderRepresentation() }))
-              .then((devicesResponse) => {
-                const deviceServers = devicesResponse.Devices.map((device) => {
-                  return {
-                    deviceId: device.PK_Device,
-                    url: device.Server_Device,
-                    urlAlt: device.Server_Device_Alt,
-                  } as DeviceServer;
-                });
-                this.deviceCache.set(accountId, deviceServers);
-                resolve(deviceServers);
+      try {
+        const accountId = JSON.parse(Buffer.from(this.portalAuth!.identity, 'base64').toString()).PK_Account;
+        if (this.deviceCache.has(accountId)) {
+          const deviceServers = this.deviceCache.get(accountId);
+          resolve(deviceServers!);
+        } else {
+          const endpoint =
+            `https://${this.portalAuth!.serverAccount}/account/account/account/${accountId}/devices`;
+          htRequest(Object.assign({}, url.parse(endpoint), { headers: this.sessionToken!.toHeaderRepresentation() }))
+            .then((devicesResponse) => {
+              const deviceServers = devicesResponse.Devices.map((device) => {
+                return {
+                  deviceId: device.PK_Device,
+                  url: device.Server_Device,
+                  urlAlt: device.Server_Device_Alt,
+                } as DeviceServer;
               });
-          }
-        })
-        .catch((err) => {
-          reject(new Error(`Failed to get account devices due to ${err}`));
-        });
-
+              this.deviceCache.set(accountId, deviceServers);
+              resolve(deviceServers);
+            });
+        }
+      } catch(err) {
+        reject(`Error while getting device servers: ${err}`);
+      }
     });
   }
 
@@ -239,8 +218,7 @@ export class BaliCloudResolver implements CredentialsResolver {
 
   private getDeviceServer(hubSerial: string): Promise<DeviceServer> {
     return new Promise((resolve, reject) => {
-      this.authenticate()
-        .then(() => this.deviceServers())
+      this.deviceServers()
         .then((devices) => {
           const matches = devices.filter((device) => device.deviceId === hubSerial);
           if (matches.length !== 1) {
