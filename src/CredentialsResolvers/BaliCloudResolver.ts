@@ -11,7 +11,7 @@ import url from 'url';
 abstract class AuthToken {
   constructor(private expiration: number = 0) { }
   expired(): boolean {
-    return Date.now() > this.expiration;
+    return Date.now() / 1000 > this.expiration;
   }
 }
 

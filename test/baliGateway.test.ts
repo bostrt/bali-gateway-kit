@@ -206,13 +206,13 @@ describe('BaliGateway Test Suite', function() {
 
     it('Try to get list of rooms, wait, and then try again', async function() {
       console.log(await this.hub.rooms());
-      await sleep(BaliApiSimulator.age);
+      await sleep(BaliApiSimulator.age * 1000);
       const portalScope = baliApiSim.portal();
       const sessionLookupScope = baliApiSim.sessionLookup();
       console.log(await this.hub.rooms());
       portalScope.done();
       sessionLookupScope.done();
-    }).timeout(BaliApiSimulator.age + 1000);
+    }).timeout(BaliApiSimulator.age * 1000);
   });
 
   describe.skip('Keep-alive test', function() {

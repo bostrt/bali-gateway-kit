@@ -49,7 +49,7 @@ export class MockBaliWebsocketServer {
     // Perform fake auth
     const expiration = JSON.parse(atob(data.params.MMSAuth)).Expires;
     let error: any = null;
-    if (Date.now() >= expiration) {
+    if (Date.now() / 1000 >= expiration) {
       error = 'cloud.error.mms_autha_token_expired';
     }
     return { 'id': data.id, 'method': 'loginUserMios', 'error': error, 'result': {} };

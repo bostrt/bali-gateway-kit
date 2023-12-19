@@ -10,7 +10,7 @@ import { HubIdentifier } from '../../src/BaliGateway';
 
 export class BaliApiSimulator {
   public static fakeHubIdentity: HubIdentifier = '70001234';
-  public static age = 5000; // The age in millis for which tokens will expire
+  public static age = 5; // The age in seconds for which tokens will expire
   // This is the only URL that does not line up with real world situation. This one is for a potentially
   // mocked websocket endpoint. An example of a real world response for device relay is:
   // wss://nma-server10-oem-ui-cloud.ezlo.com:443
@@ -35,7 +35,7 @@ export class BaliApiSimulator {
   };
   
   constructor() {
-    this.expiration = Date.now() + BaliApiSimulator.age;
+    this.expiration = (Date.now() / 1000) + BaliApiSimulator.age;
     this.portalIdentity = btoa(JSON.stringify({'Expires': this.expiration, 'PK_Account': this.fakeAccountId}));
     this.fakePortalAuth = {
       'Identity': this.portalIdentity,
