@@ -47,7 +47,17 @@ export class BaliGateway {
   public async initialize() {
     const newCredentials = await this.credentialsResolver.credentials(this.hubSerial);
     if (this.compareCredentials(newCredentials, this.credentials)) {
+      console.debug('Using existing websocket');
       return;
+    }
+    console.debug('Initializing new websocket');
+
+    if (this.keepAliveDelegate) {
+      this.keepAliveDelegate.stopHeartbeat();
+    }
+
+    if (this.wsp) {
+      await this._disconnect();
     }
 
     this.credentials = newCredentials;
@@ -106,23 +116,32 @@ export class BaliGateway {
    */
   async connect(): Promise<BaliGateway> {
     const release = await this.connectMutex.acquire();
+    console.debug('connectionMutex acquired');
     await this.initialize();
 
     if (this._isConnected === true) {
+      console.debug('connectMutex releasing (already connected)');
       return Promise.resolve(this).finally(release);
     }
 
     return new Promise((resolve, reject) => {
       this.wsp.open()
-        .then(() => this.wsp.sendRequest({method: 'loginUserMios',
-          params: { PK_Device: this.credentials.hubIdentity, MMSAuthSig: this.credentials.signature, MMSAuth: this.credentials.token }}))
+        .then(() => {
+          console.log('loginUserMios');
+          return this.wsp.sendRequest({method: 'loginUserMios',
+            params: { PK_Device: this.credentials.hubIdentity, MMSAuthSig: this.credentials.signature, MMSAuth: this.credentials.token }});
+        })
         .then((response: any) => {
+          console.debug(response);
           if (response.error !== null && response.error.data !== 'user.login.alreadylogged') {
             reject(new Error(`Login failed for ${this.credentials.url} due to error ${response.error.data}`));
           }
         })
-        .then(() => this.wsp.sendRequest({method: 'register',
-          params: {serial: this.credentials.hubIdentity}}))
+        .then(() => {
+          console.debug('register');
+          return this.wsp.sendRequest({method: 'register',
+            params: {serial: this.credentials.hubIdentity}})
+        })
         .then((response: any) => {
           if (response.error !== null) {
             reject(new Error(`Device registration failed due to ${response.error.data}`));
@@ -133,7 +152,10 @@ export class BaliGateway {
         .catch(err => {
           reject(new Error(`Login failed - unable to connect to ${this.credentials.url} due to error ${err}`));
         })
-        .finally(release);
+        .finally(() => {
+          console.debug('connecteMutex releasing (new connection)');
+          release();
+        });
     });
   }
 
@@ -145,12 +167,16 @@ export class BaliGateway {
    *
    * @return Promise<void> - disconnect complete
    */
-  disconnect(): Promise<void> {
+  public async disconnect(): Promise<void> {
     return this.connectMutex.acquire()
       .then((release) => {
-        this._isConnected = false;
-        return this.wsp.close().finally(release);    
+        this._disconnect().finally(release);
       });
+  }
+
+  private _disconnect(): Promise<void> {
+    this._isConnected = false;
+    return this.wsp.close();
   }
 
   /**
@@ -437,6 +463,7 @@ class KeepAliveAgent {
 
     // Guard single Keep-alive for the lifecycle of a connection
     if (this.pingExpiry === undefined) {
+      console.debug('Starting keepalive heartbeat')
       this.wsp.ws.on('ping', heartbeat);
       heartbeat();
     }
@@ -447,6 +474,7 @@ class KeepAliveAgent {
    * re-established at which point the reconnect interval is terminated.
    */
   private reconnect() {
+    console.log('Attempting reconnect');
     this.stopHeartbeat();
     let reconnectInProgress = false;
     this.reconnectInterval = setInterval(() => {
@@ -465,7 +493,7 @@ class KeepAliveAgent {
     }, 5 * 1000);
   }
 
-  private stopHeartbeat() {
+  public stopHeartbeat() {
     clearInterval(this.pingExpiry!);
     this.pingExpiry = undefined;
   }

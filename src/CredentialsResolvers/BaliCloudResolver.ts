@@ -11,7 +11,7 @@ import url from 'url';
 abstract class AuthToken {
   constructor(private expiration: number = 0) { }
   expired(): boolean {
-    return Date.now() / 1000 > this.expiration;
+    return Date.now() / 1000 > this.expiration; // - 86380; ... Use this to play with quicker expiration of tokens :)
   }
 }
 
@@ -89,6 +89,7 @@ export class BaliCloudResolver implements CredentialsResolver {
       `${this.username}?SHA1Password=${this.passwordHash}&PK_Oem=73&TokenVersion=2`;
 
     if (BaliCloudResolver.authIsValid(this.portalAuth)) {
+      console.debug('BaliCloudResolver: using cached valid auth');
       return Promise.resolve(this.portalAuth!);
     }
 
@@ -124,6 +125,7 @@ export class BaliCloudResolver implements CredentialsResolver {
 
   private authenticate(): Promise<void> {
     if (this.portalAuth && this.sessionToken && BaliCloudResolver.authIsValid(this.portalAuth)) {
+      console.debug('BaliCloudResolver: using cached portal auth');
       return Promise.resolve();
     }
 
@@ -150,6 +152,7 @@ export class BaliCloudResolver implements CredentialsResolver {
         const accountId = JSON.parse(Buffer.from(this.portalAuth!.identity, 'base64').toString()).PK_Account;
         if (this.deviceCache.has(accountId)) {
           const deviceServers = this.deviceCache.get(accountId);
+          console.debug('BaliCloudResolver: using cached device servers');
           resolve(deviceServers!);
         } else {
           const endpoint =
@@ -234,6 +237,7 @@ export class BaliCloudResolver implements CredentialsResolver {
 
   private getDeviceServerRelayUrl(deviceServer: DeviceServer): Promise<string> {
     if (this.deviceRelayCache.has(deviceServer)) {
+      console.debug('BaliCloudResolver: using cached device relay');
       return Promise.resolve(this.deviceRelayCache.get(deviceServer)!);
     }
     return new Promise((resolve, reject) => {
