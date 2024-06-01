@@ -47,10 +47,8 @@ export class BaliGateway {
   public async initialize() {
     const newCredentials = await this.credentialsResolver.credentials(this.hubSerial);
     if (this.compareCredentials(newCredentials, this.credentials)) {
-      console.debug('Using existing websocket');
       return;
     }
-    console.debug('Initializing new websocket');
 
     if (this.keepAliveDelegate) {
       this.keepAliveDelegate.stopHeartbeat();
@@ -116,29 +114,24 @@ export class BaliGateway {
    */
   async connect(): Promise<BaliGateway> {
     const release = await this.connectMutex.acquire();
-    console.debug('connectionMutex acquired');
     await this.initialize();
 
     if (this._isConnected === true) {
-      console.debug('connectMutex releasing (already connected)');
       return Promise.resolve(this).finally(release);
     }
 
     return new Promise((resolve, reject) => {
       this.wsp.open()
         .then(() => {
-          console.log('loginUserMios');
           return this.wsp.sendRequest({method: 'loginUserMios',
             params: { PK_Device: this.credentials.hubIdentity, MMSAuthSig: this.credentials.signature, MMSAuth: this.credentials.token }});
         })
         .then((response: any) => {
-          console.debug(response);
           if (response.error !== null && response.error.data !== 'user.login.alreadylogged') {
             reject(new Error(`Login failed for ${this.credentials.url} due to error ${response.error.data}`));
           }
         })
         .then(() => {
-          console.debug('register');
           return this.wsp.sendRequest({method: 'register',
             params: {serial: this.credentials.hubIdentity}})
         })
@@ -153,7 +146,6 @@ export class BaliGateway {
           reject(new Error(`Login failed - unable to connect to ${this.credentials.url} due to error ${err}`));
         })
         .finally(() => {
-          console.debug('connecteMutex releasing (new connection)');
           release();
         });
     });
@@ -463,7 +455,6 @@ class KeepAliveAgent {
 
     // Guard single Keep-alive for the lifecycle of a connection
     if (this.pingExpiry === undefined) {
-      console.debug('Starting keepalive heartbeat')
       this.wsp.ws.on('ping', heartbeat);
       heartbeat();
     }
