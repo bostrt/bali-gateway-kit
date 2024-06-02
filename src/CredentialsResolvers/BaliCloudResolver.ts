@@ -167,7 +167,7 @@ export class BaliCloudResolver implements CredentialsResolver {
               resolve(deviceServers);
             });
         }
-      } catch(err) {
+      } catch (err) {
         reject(`Error while getting device servers: ${err}`);
       }
     });
@@ -245,8 +245,19 @@ export class BaliCloudResolver implements CredentialsResolver {
           this.deviceRelayCache.set(deviceServer, response.Server_Relay);
           resolve(response.Server_Relay);
         })
-        .catch((err) => {
-          reject(new Error(`Error while getting Device Server Relay URL due to ${err}`));
+        .catch(() => {
+          // Try second device server
+          const endpoint2 =
+            `https://${deviceServer.urlAlt}/device/device/device/${deviceServer.deviceId}`;
+          htRequest(Object.assign({}, url.parse(endpoint2), { headers: this.sessionToken?.toHeaderRepresentation() }))
+            .then((response) => {
+              // Update cache and resolve
+              this.deviceRelayCache.set(deviceServer, response.Server_Relay);
+              resolve(response.Server_Relay);
+            })
+            .catch((err2) => {
+              reject(new Error(`Error while getting Device Server Relay URL due to ${err2}`));
+            });
         });
     });
   }
